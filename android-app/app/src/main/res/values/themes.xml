@@ -1,7 +1,15 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Always dark: BOW BOW is a dark-theme assistant. -->
     <style name="Theme.BowBow" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/bowbow_primary</item>
         <item name="colorPrimaryDark">@color/bowbow_primary_dark</item>
         <item name="colorAccent">@color/bowbow_accent</item>
+        <item name="android:colorBackground">@color/bowbow_surface</item>
+        <item name="colorSurface">@color/bowbow_surface</item>
+        <item name="colorOnSurface">@color/bowbow_text</item>
+        <item name="colorSurfaceVariant">@color/bowbow_surface_high</item>
+        <item name="android:textColorPrimary">@color/bowbow_text</item>
+        <item name="android:textColorSecondary">@color/bowbow_text_secondary</item>
+        <item name="android:editTextBackground">@color/bowbow_surface_high</item>
     </style>
 </resources>

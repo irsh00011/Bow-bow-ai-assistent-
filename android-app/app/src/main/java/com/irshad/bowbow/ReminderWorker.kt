@@ -46,7 +46,8 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) :
     private suspend fun checkDueReminders(api: BowBowApi) {
         val now = Instant.now()
         for (reminder in api.listReminders()) {
-            val dueAt = parseTime(reminder.scheduled_at) ?: run {
+            val dueAt = parseTime(reminder.scheduled_at)
+            if (dueAt == null) {
                 Log.w(TAG, "Skipping reminder ${reminder.id}: " +
                     "unparseable scheduled_at '${reminder.scheduled_at}'")
                 continue

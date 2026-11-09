@@ -108,6 +108,70 @@ class BowBowApi(baseUrl: String) {
             }
         }
 
+    /** All tasks, newest first (backend returns creation order). */
+    suspend fun listAllTasks(): List<Task> =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url("$base/tasks")
+                .get()
+                .build()
+            client.newCall(request).execute().use { response ->
+                val text = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    throw IOException("Server error ${response.code}: ${text.take(200)}")
+                }
+                gson.fromJson(text, Array<Task>::class.java)
+                    ?.toList().orEmpty()
+            }
+        }
+
+    /** All reminders. */
+    suspend fun listAllReminders(): List<Reminder> =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url("$base/reminders")
+                .get()
+                .build()
+            client.newCall(request).execute().use { response ->
+                val text = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    throw IOException("Server error ${response.code}: ${text.take(200)}")
+                }
+                gson.fromJson(text, Array<Reminder>::class.java)
+                    ?.toList().orEmpty()
+            }
+        }
+
+    private data class CallRequest(val to: String, val message: String)
+
+    private data class CallResponse(
+        val status: String?,
+        val call_sid: String?,
+        val to: String?
+    )
+
+    /** Request an announcement call via the backend (server-side,
+     *  allowlisted to the user's own number, confirmation-gated).
+     *  Returns the Twilio call SID on success. */
+    suspend fun requestCall(to: String, message: String): String =
+        withContext(Dispatchers.IO) {
+            val body = gson.toJson(CallRequest(to, message))
+                .toRequestBody(jsonType)
+            val request = Request.Builder()
+                .url("$base/call")
+                .post(body)
+                .build()
+            client.newCall(request).execute().use { response ->
+                val text = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    throw IOException("Server error ${response.code}: ${text.take(200)}")
+                }
+                val parsed = gson.fromJson(text, CallResponse::class.java)
+                parsed.call_sid?.takeIf { it.isNotBlank() }
+                    ?: throw IOException("No call SID in response")
+            }
+        }
+
     /** Tasks waiting on the user's approval, for the polling worker. */
     suspend fun listTasksAwaitingApproval(): List<Task> =
         withContext(Dispatchers.IO) {

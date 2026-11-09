@@ -9,13 +9,16 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -29,10 +32,11 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-/** BOW BOW — single-screen voice assistant.
+/** BOW BOW — dark voice assistant.
  *  Tap the mic, speak in Tamil / English / Tanglish, hear the reply.
- *  Text input works as a fallback. The backend URL is changeable in
- *  Settings (gear icon, top right). */
+ *  Text input works as a fallback. History and Settings live in the
+ *  top bar; the phone icon requests an announcement call (confirmed
+ *  in-app, then placed by the backend to the user's own number). */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -57,6 +61,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // BOW BOW is always dark.
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -77,7 +83,13 @@ class MainActivity : AppCompatActivity() {
                 false
             }
         }
-        binding.settingsButton.setOnClickListener { showSettingsDialog() }
+        binding.settingsButton.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+        binding.historyButton.setOnClickListener {
+            startActivity(Intent(this, HistoryActivity::class.java))
+        }
+        binding.callButton.setOnClickListener { showCallDialog() }
 
         initTextToSpeech()
         requestPermissions()
@@ -91,6 +103,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ----- Voice input -----
+
+    private fun recognizerLanguage(): String =
+        when (Prefs.getLanguage(this)) {
+            "en-IN" -> "en-IN"
+            else -> "ta-IN" // "auto" and "ta-IN" both start in Tamil
+        }
 
     private fun onMicTapped() {
         if (isBusy) return
@@ -123,7 +141,11 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onBeginningOfSpeech() = Unit
-            override fun onRmsChanged(rmsdB: Float) = Unit
+
+            override fun onRmsChanged(rmsdB: Float) {
+                binding.waveformView.setLevel(rmsdB)
+            }
+
             override fun onBufferReceived(buffer: ByteArray?) = Unit
             override fun onEndOfSpeech() = Unit
 
@@ -152,18 +174,20 @@ class MainActivity : AppCompatActivity() {
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
             )
-            // Tamil first — the recognizer falls back to the phone's
-            // default language when Tamil is unavailable.
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ta-IN")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, recognizerLanguage())
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
         isListening = true
+        binding.waveformView.startAnimation()
+        binding.micButton.setImageResource(android.R.drawable.ic_media_pause)
         recognizer.startListening(intent)
     }
 
     private fun stopListening() {
         isListening = false
+        binding.waveformView.stopAnimation()
+        binding.micButton.setImageResource(android.R.drawable.ic_btn_speak_now)
         speechRecognizer?.stopListening()
         speechRecognizer?.destroy()
         speechRecognizer = null
@@ -175,17 +199,43 @@ class MainActivity : AppCompatActivity() {
         tts = TextToSpeech(this) { status ->
             if (status != TextToSpeech.SUCCESS) return@TextToSpeech
             val engine = tts ?: return@TextToSpeech
-            val tamil = Locale("ta", "IN")
+            val wanted = when (Prefs.getLanguage(this)) {
+                "en-IN" -> Locale("en", "IN")
+                else -> Locale("ta", "IN")
+            }
             engine.language =
-                if (engine.isLanguageAvailable(tamil) >= TextToSpeech.LANG_AVAILABLE) {
-                    tamil
+                if (engine.isLanguageAvailable(wanted) >= TextToSpeech.LANG_AVAILABLE) {
+                    wanted
                 } else {
                     Locale("en", "IN")
                 }
+            engine.setOnUtteranceProgressListener(
+                object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        runOnUiThread {
+                            setStatus(getString(R.string.speaking))
+                        }
+                    }
+
+                    override fun onDone(utteranceId: String?) {
+                        runOnUiThread {
+                            setStatus(getString(R.string.tap_mic_hint))
+                        }
+                    }
+
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) {
+                        runOnUiThread {
+                            setStatus(getString(R.string.tap_mic_hint))
+                        }
+                    }
+                }
+            )
         }
     }
 
     private fun speak(text: String) {
+        if (!Prefs.isTtsEnabled(this)) return
         tts?.speak(
             text, TextToSpeech.QUEUE_FLUSH, null,
             "bowbow-${System.currentTimeMillis()}"
@@ -237,29 +287,54 @@ class MainActivity : AppCompatActivity() {
         binding.statusText.text = text
     }
 
-    // ----- Settings -----
+    // ----- Phone call request (confirmed in-app, placed by backend) -----
 
-    private fun showSettingsDialog() {
-        val input = EditText(this).apply {
-            setText(Prefs.getBackendUrl(this@MainActivity))
-            hint = BowBowConfig.DEFAULT_BACKEND_URL
+    private fun showCallDialog() {
+        val numberInput = EditText(this).apply {
+            setText("+917418189588")
+            hint = getString(R.string.call_number_hint)
+            inputType =
+                android.text.InputType.TYPE_CLASS_PHONE
+        }
+        val messageInput = EditText(this).apply {
+            setText("Hi, this is BOW BOW, your personal assistant calling.")
+            hint = getString(R.string.call_message_hint)
+        }
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 16, 48, 16)
+            addView(numberInput)
+            addView(messageInput)
         }
         AlertDialog.Builder(this)
-            .setTitle(R.string.settings_title)
-            .setMessage(R.string.backend_url_hint)
-            .setView(input)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                val url = input.text.toString().trim().trimEnd('/')
-                if (url.isNotBlank()) {
-                    Prefs.setBackendUrl(this, url)
-                    api = BowBowApi(url)
-                    Toast.makeText(
-                        this, R.string.backend_url_saved, Toast.LENGTH_SHORT
-                    ).show()
+            .setTitle(R.string.call_title)
+            .setView(layout)
+            .setPositiveButton(R.string.call_confirm) { _, _ ->
+                val to = numberInput.text.toString().trim()
+                val message = messageInput.text.toString().trim()
+                if (to.isNotBlank() && message.isNotBlank()) {
+                    placeCall(to, message)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    private fun placeCall(to: String, message: String) {
+        lifecycleScope.launch {
+            try {
+                val client = api ?: BowBowApi(Prefs.getBackendUrl(this@MainActivity))
+                client.requestCall(to, message)
+                Toast.makeText(
+                    this@MainActivity, R.string.call_placed, Toast.LENGTH_LONG
+                ).show()
+            } catch (e: Exception) {
+                Log.w(TAG, "Call failed: ${e.message}")
+                Toast.makeText(
+                    this@MainActivity, R.string.call_failed, Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
 
     // ----- Permissions & reminder polling -----

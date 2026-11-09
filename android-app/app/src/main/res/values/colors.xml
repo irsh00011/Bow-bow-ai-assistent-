@@ -1,7 +1,11 @@
 <resources>
-    <color name="bowbow_primary">#1565C0</color>
-    <color name="bowbow_primary_dark">#0D47A1</color>
+    <color name="bowbow_primary">#4D8DFF</color>
+    <color name="bowbow_primary_dark">#0B1220</color>
     <color name="bowbow_accent">#FF8F00</color>
+    <color name="bowbow_surface">#0B1220</color>
+    <color name="bowbow_surface_high">#16233A</color>
+    <color name="bowbow_text">#E8EEF7</color>
+    <color name="bowbow_text_secondary">#9AA8C0</color>
     <color name="user_bubble">#1565C0</color>
-    <color name="assistant_bubble">#E8EAF6</color>
+    <color name="assistant_bubble">#1E2A44</color>
 </resources>

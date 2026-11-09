@@ -3,6 +3,7 @@
     <string name="tap_mic_hint">Tap the mic and speak — Tamil, English or Tanglish</string>
     <string name="listening">Listening…</string>
     <string name="thinking">Thinking…</string>
+    <string name="speaking">Speaking…</string>
     <string name="type_message">Type a message…</string>
     <string name="send">Send</string>
     <string name="mic">Microphone</string>
@@ -14,4 +15,32 @@
     <string name="speech_not_available">Speech recognition is not available on this phone.</string>
     <string name="could_not_reach_server">Sorry — I could not reach the server. Check the backend address in Settings.</string>
     <string name="notification_channel_name">BOW BOW reminders</string>
+
+    <string name="history">History</string>
+    <string name="history_title">History</string>
+    <string name="tab_tasks">Tasks</string>
+    <string name="tab_reminders">Reminders</string>
+    <string name="refresh">Refresh</string>
+    <string name="loading">Loading…</string>
+    <string name="no_items">Nothing here yet.</string>
+    <string name="load_failed">Could not load. Check your connection and try again.</string>
+
+    <string name="call">Call</string>
+    <string name="call_title">Request a phone call</string>
+    <string name="call_number_hint">Phone number (e.g. +917418189588)</string>
+    <string name="call_message_hint">Message to speak on the call</string>
+    <string name="call_confirm">Call now</string>
+    <string name="call_placed">Call placed — your phone will ring shortly.</string>
+    <string name="call_failed">Call failed. Check the number and try again.</string>
+
+    <string name="settings_language">Voice language</string>
+    <string name="language_auto">Auto (Tamil first)</string>
+    <string name="language_tamil">Tamil</string>
+    <string name="language_english">English</string>
+    <string name="settings_tts">Speak replies aloud</string>
+    <string name="settings_backend_status">Check backend status</string>
+    <string name="backend_status_ok">Backend is online.</string>
+    <string name="backend_status_failed">Backend unreachable.</string>
+    <string name="version_label">Version</string>
+    <string name="about_text">BOW BOW — your personal AI assistant. Speak Tamil, English or Tanglish; it reads your mail, manages tasks and reminders, and can ring your phone.</string>
 </resources>

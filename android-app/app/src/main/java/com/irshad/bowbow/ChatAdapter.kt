@@ -54,7 +54,7 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.MessageViewHolder>() {
                     ContextCompat.getColor(context, R.color.assistant_bubble)
                 )
                 binding.messageText.setTextColor(
-                    ContextCompat.getColor(context, android.R.color.black)
+                    ContextCompat.getColor(context, android.R.color.white)
                 )
             }
             binding.messageText.layoutParams = params
