@@ -9,6 +9,7 @@ flows by webhook. No other automation platform is used anywhere here.
 import json
 import os
 from typing import Any
+from xml.sax.saxutils import escape as _xml_escape
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -44,9 +45,11 @@ ALLOWED_TOOLS = [
 # by its webhook URL from the environment; a flow with no URL configured
 # is reported as not_configured, never faked as run. Flow E is
 # schedule-triggered inside Activepieces, so no chat tool maps to it.
-# Tools with no flow yet (create_email_draft, search_drive_files,
-# request_phone_call) are handled directly by the backend in their own
-# phases and trigger no flow.
+# Tools with no flow yet (create_email_draft, search_drive_files) are
+# handled directly by the backend in their own phases and trigger no flow.
+# request_phone_call is handled by POST /call (Phase 11): the model only
+# requests a call, the app asks mohamed to confirm, and only then does
+# the backend dial — only to numbers on the verified allowlist.
 FLOW_MAP = {
     "get_emails": "A", "summarize_emails": "A", "search_emails": "A",
     "get_calendar_events": "D", "create_calendar_event": "D",
@@ -163,10 +166,11 @@ TOOLS_SPEC = [
          "required": ["title", "scheduled_at"]}}},
     {"type": "function", "function": {
         "name": "request_phone_call",
-        "description": "Request an outbound phone call. Needs authorisation.",
+        "description": "Request an outbound phone call. Needs authorisation — the app asks mohamed to confirm before dialling, and only numbers he verified may be called.",
         "parameters": {"type": "object", "properties": {
+            "to": {"type": "string", "description": "E.164 phone number to call, e.g. +917418189588"},
             "message": {"type": "string"}},
-         "required": ["message"]}}},
+         "required": ["to", "message"]}}},
 ]
 
 app = FastAPI(title="BOW BOW backend", version="0.1.0")
@@ -262,6 +266,11 @@ def health():
             "configured": bool(sb_url) and sb_role != "missing",
             "role": sb_role,
             "user_id_configured": bool(_sb_user_id()),
+        },
+        "twilio": {
+            "configured": bool(_twilio_config()[0] and _twilio_config()[1]
+                               and _twilio_config()[2]),
+            "allowed_count": len(_twilio_config()[3]),
         },
     }
 
@@ -383,6 +392,73 @@ def flows():
             for letter in "ABCDE"
         ],
     }
+
+
+# --- Phone calls (Phase 11, Twilio trial, Announce mode) ---
+# The model never dials by itself: /chat only returns a request_phone_call
+# tool call, the app asks mohamed to confirm, and only then does the
+# backend dial via POST /call. The trial can only call numbers Twilio has
+# verified, and the backend additionally allowlists them here. The Auth
+# Token is never logged and never appears in any response.
+def _twilio_config():
+    sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    from_number = os.environ.get("TWILIO_FROM_NUMBER", "")
+    allowed = [n.strip() for n in
+               os.environ.get("TWILIO_ALLOWED_NUMBERS", "+917418189588")
+               .split(",") if n.strip()]
+    return sid, token, from_number, allowed
+
+
+def _is_tamil(text: str) -> bool:
+    return any("\u0b80" <= ch <= "\u0bff" for ch in text)
+
+
+class CallRequest(BaseModel):
+    to: str = Field(min_length=10, max_length=20)
+    message: str = Field(min_length=1, max_length=500)
+
+
+@app.post("/call")
+async def place_call(req: CallRequest):
+    sid, token, from_number, allowed = _twilio_config()
+    if not sid or not token or not from_number:
+        raise HTTPException(
+            status_code=503,
+            detail="Twilio is not configured (TWILIO_ACCOUNT_SID / "
+            "TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER missing in backend/.env).",
+        )
+    if req.to not in allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="That number is not on the verified-callers list. "
+            "Twilio trial calls only go to numbers mohamed verified.",
+        )
+    # TwiML: speak the message once, then hang up. Tamil messages use the
+    # Tamil voice; everything else uses the Indian English voice.
+    tamil = _is_tamil(req.message)
+    voice = "Polly.Aditi" if tamil else "alice"
+    language = "ta-IN" if tamil else "en-IN"
+    twiml = (
+        f'<Response><Say voice="{voice}" language="{language}">'
+        f"{_xml_escape(req.message)}</Say></Response>"
+    )
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Calls.json"
+    try:
+        async with _http_client(30) as client:
+            r = await client.post(
+                url, auth=(sid, token),
+                data={"To": req.to, "From": from_number, "Twiml": twiml},
+            )
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"Twilio unreachable: {e}")
+    if r.status_code >= 400:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Twilio refused the call ({r.status_code}): {r.text[:200]}",
+        )
+    data = r.json()
+    return {"status": "placed", "call_sid": data.get("sid"), "to": req.to}
 
 
 @app.post("/chat", response_model=ChatResponse)
