@@ -1,0 +1,6 @@
+# Vercel installs dependencies from this root requirements.txt. Keep in sync with backend/requirements.txt (local dev).
+fastapi==0.162.2
+uvicorn[standard]==0.34.0
+httpx==0.28.1
+pydantic==2.11.0
+python-dotenv==1.0.1
