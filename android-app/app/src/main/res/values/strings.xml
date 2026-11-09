@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">BOW BOW</string>
+    <string name="tap_mic_hint">Tap the mic and speak — Tamil, English or Tanglish</string>
+    <string name="listening">Listening…</string>
+    <string name="thinking">Thinking…</string>
+    <string name="type_message">Type a message…</string>
+    <string name="send">Send</string>
+    <string name="mic">Microphone</string>
+    <string name="settings">Settings</string>
+    <string name="settings_title">Settings</string>
+    <string name="backend_url_hint">Backend server address (the BOW BOW FastAPI server)</string>
+    <string name="backend_url_saved">Backend address saved</string>
+    <string name="mic_permission_needed">Microphone permission is needed to talk to BOW BOW.</string>
+    <string name="speech_not_available">Speech recognition is not available on this phone.</string>
+    <string name="could_not_reach_server">Sorry — I could not reach the server. Check the backend address in Settings.</string>
+    <string name="notification_channel_name">BOW BOW reminders</string>
+</resources>

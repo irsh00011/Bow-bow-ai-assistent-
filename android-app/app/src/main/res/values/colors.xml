@@ -1,0 +1,7 @@
+<resources>
+    <color name="bowbow_primary">#1565C0</color>
+    <color name="bowbow_primary_dark">#0D47A1</color>
+    <color name="bowbow_accent">#FF8F00</color>
+    <color name="user_bubble">#1565C0</color>
+    <color name="assistant_bubble">#E8EAF6</color>
+</resources>

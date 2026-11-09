@@ -1,0 +1,50 @@
+# BOW BOW — Activepieces (Phase 3)
+# NOTE 2026-11-08: Docker daemon cannot start on this VM (iptables
+# permission denied on bridge NAT), so this compose file is READY but
+# NOT yet run here. Two paths:
+#   A) Activepieces Cloud free tier — https://cloud.activepieces.com/sign-up
+#      $0, 1,000 credits/mo, unlimited flows. Recommended first.
+#   B) Run this compose on a VPS / PC with a working Docker daemon.
+# Single-container eval alternative (lighter, PGLite, no Postgres/Redis):
+#   docker run -d --name activepieces -p 8080:80 \
+#     -v ~/.activepieces:/root/.activepieces -e AP_DB_TYPE=PGLITE \
+#     activepieces/activepieces:latest
+services:
+  activepieces:
+    image: activepieces/activepieces:latest
+    container_name: activepieces
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      AP_DB_TYPE: POSTGRES
+      AP_POSTGRES_HOST: postgres
+      AP_POSTGRES_PORT: "5432"
+      AP_POSTGRES_DATABASE: activepieces
+      AP_POSTGRES_USERNAME: activepieces
+      AP_POSTGRES_PASSWORD: ${AP_POSTGRES_PASSWORD:?set in .env}
+      AP_REDIS_HOST: redis
+      AP_REDIS_PORT: "6379"
+      AP_ENCRYPTION_KEY: ${AP_ENCRYPTION_KEY:?set in .env}
+      AP_FRONTEND_URL: ${AP_FRONTEND_URL:-http://localhost:8080}
+      AP_EXECUTION_MODE: SANDBOXED
+    depends_on:
+      - postgres
+      - redis
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: activepieces
+      POSTGRES_USER: activepieces
+      POSTGRES_PASSWORD: ${AP_POSTGRES_PASSWORD:?set in .env}
+    volumes:
+      - ap-postgres:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - ap-redis:/data
+volumes:
+  ap-postgres:
+  ap-redis:
