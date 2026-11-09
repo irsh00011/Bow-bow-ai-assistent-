@@ -436,6 +436,13 @@ async def place_call(req: CallRequest):
         )
     # TwiML: speak the message once, then hang up. Tamil messages use the
     # Tamil voice; everything else uses the Indian English voice.
+    # TRIAL LIMIT (verified 2026-11-09): trial accounts reject the inline
+    # `Twiml` parameter ("limited parameter access") — the Calls API only
+    # accepts a `Url` pointing at one of Twilio's template webhooks, e.g.
+    # .../Voice/Template/voice_text_to_speech, which speaks Twilio's own
+    # sample message, not ours. So when TWILIO_CALL_URL is set (trial),
+    # send `Url` and skip `Twiml`; without it (upgraded account), send
+    # the custom inline TwiML as before.
     tamil = _is_tamil(req.message)
     voice = "Polly.Aditi" if tamil else "alice"
     language = "ta-IN" if tamil else "en-IN"
@@ -444,12 +451,15 @@ async def place_call(req: CallRequest):
         f"{_xml_escape(req.message)}</Say></Response>"
     )
     url = f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Calls.json"
+    call_url = os.environ.get("TWILIO_CALL_URL", "")
+    form = {"To": req.to, "From": from_number}
+    if call_url:
+        form["Url"] = call_url
+    else:
+        form["Twiml"] = twiml
     try:
         async with _http_client(30) as client:
-            r = await client.post(
-                url, auth=(sid, token),
-                data={"To": req.to, "From": from_number, "Twiml": twiml},
-            )
+            r = await client.post(url, auth=(sid, token), data=form)
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Twilio unreachable: {e}")
     if r.status_code >= 400:
